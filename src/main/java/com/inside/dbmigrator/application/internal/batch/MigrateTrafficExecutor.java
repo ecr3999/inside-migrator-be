@@ -7,6 +7,8 @@ import com.inside.dbmigrator.infrastructure.postgres.RbtItemsRepository;
 import com.inside.dbmigrator.infrastructure.postgres.RbtSales;
 import com.inside.dbmigrator.infrastructure.postgres.RbtSalesRepository;
 import com.inside.dbmigrator.service.TrafficSpecification;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import jakarta.annotation.Nullable;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -58,7 +61,8 @@ public class MigrateTrafficExecutor {
                     if (month != null) {
                         rbtSalesRepository.deleteByPeriod(LocalDate.parse(month + "01", DateTimeFormatter.ofPattern("yyyyMMdd")));
                     } else {
-                        rbtSalesRepository.deleteAll();
+                        rbtSalesRepository.deleteAllInBatch();
+                        rbtSalesRepository.flush();
                         entityManager.createNativeQuery("ALTER TABLE rbt_sales ALTER COLUMN id RESTART WITH 1;").executeUpdate();
                     }
                     return RepeatStatus.FINISHED;
@@ -68,11 +72,27 @@ public class MigrateTrafficExecutor {
 
     public Step migrateTrafficStep(@Nullable Integer startId, @Nullable Integer endId, @Nullable Integer month) {
         return new StepBuilder("migrateTrafficStep", jobRepository)
-                .<Traffic, RbtSales>chunk(100, transactionManager)
+                .<Traffic, RbtSales>chunk(10, transactionManager)
                 .reader(trafficItemReader(startId, endId, month))
                 .processor(trafficItemProcessor())
-                .writer(rbtSalesItemWriter())
+                .writer(loggingItemWriter(rbtSalesItemWriter()))
                 .build();
+    }
+
+    /**
+     * Wraps the given ItemWriter with logging to measure chunk duration and size.
+     */
+    private ItemWriter<RbtSales> loggingItemWriter(ItemWriter<RbtSales> delegate) {
+        return items -> {
+            long start = System.currentTimeMillis();
+            log.info("[CHUNK] Starting write of {} items at {}", items.size(), start);
+            try {
+                delegate.write(items);
+            } finally {
+                long end = System.currentTimeMillis();
+                log.info("[CHUNK] Finished write of {} items at {} (duration: {} ms)", items.size(), end, (end - start));
+            }
+        };
     }
 
     public ItemReader<Traffic> trafficItemReader(Integer startId, Integer endId, Integer month) {
@@ -86,10 +106,25 @@ public class MigrateTrafficExecutor {
     }
 
     public ItemProcessor<Traffic, RbtSales> trafficItemProcessor() {
-        return new TrafficItemProcessor(providerRepository, rbtItemsRepository);
+        Map<Integer, com.inside.dbmigrator.infrastructure.mysql.Provider> providerMap = providerRepository.findAll().stream()
+                .collect(Collectors.toMap(com.inside.dbmigrator.infrastructure.mysql.Provider::getId, p -> p));
+        Map<String, String> codeToOperatorMap = new java.util.HashMap<>();
+        ObjectMapper objectMapper = new ObjectMapper();
+        rbtItemsRepository.findAll().forEach(rbtItem -> {
+            try {
+                Map<String, String> operatorToCode = objectMapper.readValue(rbtItem.getRbtCode(), new TypeReference<Map<String, String>>() {});
+                operatorToCode.forEach((operator, code) -> {
+                    codeToOperatorMap.put(code, operator);
+                });
+            } catch (Exception e) {
+                log.error("Failed to parse rbtCode JSON for RbtItems id {}: {}", rbtItem.getId(), e.getMessage());
+            }
+        });
+        return new TrafficItemProcessor(providerMap, codeToOperatorMap);
     }
 
     public ItemWriter<RbtSales> rbtSalesItemWriter() {
         return rbtSalesRepository::saveAll;
     }
 }
+

@@ -38,8 +38,6 @@ public class MigrateRevenueExecutor {
     private final RevenueRepository revenueRepository;
     private final LabelsRepository labelsRepository;
     private final SalesTransactionRepository salesTransactionRepository;
-    private final ProviderRepository providerRepository;
-    private final RbtItemsRepository rbtItemsRepository;
     private final JobRepository jobRepository;
     private final PlatformTransactionManager transactionManager;
 
@@ -78,7 +76,7 @@ public class MigrateRevenueExecutor {
 
     public TaskExecutor taskExecutor(){
         var taskExecutor = new SimpleAsyncTaskExecutor();
-        taskExecutor.setConcurrencyLimit(5);
+        taskExecutor.setConcurrencyLimit(10);
         return taskExecutor;
     }
 
