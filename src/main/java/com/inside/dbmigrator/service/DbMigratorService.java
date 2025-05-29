@@ -46,7 +46,6 @@ public class DbMigratorService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Transactional
     public void migrateRevenue(@Nullable Integer startId, @Nullable Integer endId, @Nullable Integer month) {
         try {
             Job job = migrateRevenueExecutor.build(startId, endId, month);

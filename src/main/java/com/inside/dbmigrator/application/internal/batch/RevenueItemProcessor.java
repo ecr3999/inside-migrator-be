@@ -37,23 +37,50 @@ public class RevenueItemProcessor implements ItemProcessor<Revenue, SalesTransac
         salesTransaction.setRbtAmount(BigDecimal.valueOf(revenue.getPartnerRevenue()));
         salesTransaction.setAmountBeforeTax(salesTransaction.getRbtAmount());
 
-        // Find the label by id and get taxType
-        Labels label = labelsRepository.findById(labelId).orElse(null);
-        String taxType = label != null ? label.getTaxType() : null;
-        if ("FOUR_PERCENT".equals(taxType)) {
-            salesTransaction.setTax(salesTransaction.getRbtAmount().multiply(BigDecimal.valueOf(0.04)));
-        } else if ("TWO_PERCENT".equals(taxType)) {
-            salesTransaction.setTax(salesTransaction.getRbtAmount().multiply(BigDecimal.valueOf(0.02)));
-        } else {
-            salesTransaction.setTax(BigDecimal.valueOf(0));
+        switch (revenue.getProviderId().toString()) {
+            case "1":
+                salesTransaction.setSalesSource("TELKOMSEL");
+                salesTransaction.setSalesSourceGroup("RBT");
+                break;
+            case "2":
+                salesTransaction.setSalesSource("INDOSAT");
+                salesTransaction.setSalesSourceGroup("RBT");
+                break;
+            case "3":
+                salesTransaction.setSalesSource("XL");
+                salesTransaction.setSalesSourceGroup("RBT");
+                break;
+            case "4":
+                salesTransaction.setSalesSource("FLEXI");
+                salesTransaction.setSalesSourceGroup("RBT");
+                break;
+            case "5":
+                salesTransaction.setSalesSource("FREN");
+                salesTransaction.setSalesSourceGroup("RBT");
+                break;
+            case "6":
+                salesTransaction.setSalesSource("ESIA");
+                salesTransaction.setSalesSourceGroup("RBT");
+                break;
+            case "7":
+                salesTransaction.setSalesSource("THREE");
+                salesTransaction.setSalesSourceGroup("RBT");
+                break;
+            case "8":
+                salesTransaction.setSalesSource("AXIS");
+                salesTransaction.setSalesSourceGroup("RBT");
+                break;
+            default:
+                salesTransaction.setSalesSource("UNKNOWN");
+                salesTransaction.setSalesSourceGroup("RBT");
         }
 
-        salesTransaction.setAmountFinal(salesTransaction.getAmountBeforeTax().subtract(salesTransaction.getTax()));
+        salesTransaction.setTax(BigDecimal.valueOf(0.0));
+        salesTransaction.setAmountFinal(salesTransaction.getAmountBeforeTax());
         salesTransaction.setPaymentId(null);
         salesTransaction.setCalculatedPartner(null);
         salesTransaction.setUuid(String.valueOf(UUID.randomUUID()));
         // salesTransaction.setNewUrl(null); //To be set later
-
         return salesTransaction;
     }
 }

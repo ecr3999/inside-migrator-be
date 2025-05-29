@@ -47,4 +47,8 @@ public class SalesTransaction {
     String uuid;
     @Column(name = "new_url")
     String newUrl;
+    @Column(name = "sales_source")
+    String salesSource;
+    @Column(name = "sales_source_group")
+    String salesSourceGroup;
 }
